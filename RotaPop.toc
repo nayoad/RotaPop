@@ -1,0 +1,14 @@
+## Interface: 120100
+## Title: RotaPop
+## Notes: SimC APL-based rotation helper for Midnight
+## Author: nayoad
+## Version: 0.1.0
+## SavedVariables: RotaPopDB
+
+embeds.xml
+
+Main.lua
+State.lua
+APL.lua
+UI.lua
+Spells\RogueSubtlety.lua

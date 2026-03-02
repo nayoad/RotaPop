@@ -83,6 +83,9 @@ function addon:OnEnterWorld()
         if action and spellID then
             UI:SetAction(spellID)
             UI:Show()
+        elseif not State.inCombat then
+            -- Outside combat: keep frame visible (alpha handled by combatFrame)
+            UI:Show()
         else
             UI:Hide()
         end

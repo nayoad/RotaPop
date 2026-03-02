@@ -177,7 +177,7 @@ function State:Update()
         else
             self.cooldowns[name] = 0
         end
-        self.castable[name] = C_Spell.IsSpellUsable(spellID) and true or false
+        self.castable[name] = (C_Spell.IsSpellKnown ~= nil and C_Spell.IsSpellKnown(spellID)) or IsPlayerSpell(spellID) or false
     end
 
     -- Spell charges

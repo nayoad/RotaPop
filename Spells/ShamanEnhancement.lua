@@ -4,8 +4,8 @@
 -- Adapted for RotaPop (Midnight 12.x)
 
 if UnitClassBase("player") ~= "SHAMAN" then return end
-local specID = GetSpecializationInfo(GetSpecialization() or 1)
-if specID ~= 263 then return end
+
+RotaPop:RegisterSpec(263, function()
 
 -- Spells (name -> spellID)
 State:RegisterSpell("stormstrike",        17364)
@@ -56,8 +56,8 @@ State:RegisterDebuff("lashing_flames", 334168)
 State:RegisterDebuff("lightning_rod",  210689)
 State:RegisterDebuff("chaos_brand",    1490)
 
--- Dots (tracked on target + active count)
-State:RegisterDot("flame_shock", 188389)
+-- Dots (tracked on target + active count, with pandemic duration)
+State:RegisterDot("flame_shock", 188389, 18)
 
 -- Talents
 local talents = {
@@ -163,3 +163,5 @@ APL:RegisterList("buffs", {
     { action = "feral_spirit" },
     { action = "ascendance", condition = "buff.doom_winds.up|buff.feral_spirit.up" },
 })
+
+end) -- RotaPop:RegisterSpec(263)

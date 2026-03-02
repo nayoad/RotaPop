@@ -1,6 +1,10 @@
 -- RotaPop: Spells/RogueSubtlety.lua
 -- Subtlety Rogue spec module (Spec ID 261) – TWW Season 2 / Midnight APL
 
+if UnitClassBase("player") ~= "ROGUE" then return end
+
+RotaPop:RegisterSpec(261, function()
+
 -- ============================================================
 -- Spell IDs
 -- ============================================================
@@ -75,7 +79,6 @@ end
 -- Debuff IDs (target auras)
 -- ============================================================
 local debuffs = {
-    rupture              = 1943,
     find_weakness        = 91021,
     deathstalkers_mark   = 457829,
     sepsis               = 385408,
@@ -86,6 +89,9 @@ local debuffs = {
 for name, id in pairs(debuffs) do
     State:RegisterDebuff(name, id)
 end
+
+-- Dots (tracked on target + active count, with pandemic duration)
+State:RegisterDot("rupture", 1943, 24)
 
 -- ============================================================
 -- Talent names
@@ -162,7 +168,7 @@ APL:RegisterList("finish", {
     { action = "black_powder",
       condition = "active_enemies>=3&buff.finality_black_powder.down" },
     { action = "rupture",
-      condition = "debuff.rupture.remains<4&target.time_to_die>8" },
+      condition = "dot.rupture.remains<4&target.time_to_die>8" },
     { action = "eviscerate" },
 })
 
@@ -174,3 +180,5 @@ APL:RegisterList("build", {
       condition = "stealthed.all|debuff.find_weakness.up" },
     { action = "backstab" },
 })
+
+end) -- RotaPop:RegisterSpec(261)

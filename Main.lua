@@ -5,6 +5,35 @@ local addonName, ns = ...
 RotaPop = {}
 local addon = RotaPop
 
+RotaPop._specInits = {}  -- specID -> init function, registered by spec modules
+
+-- Register a spec initializer function (called by spec modules at load time)
+function RotaPop:RegisterSpec(specID, fn)
+    self._specInits[specID] = fn
+end
+
+-- Detect current spec and run its initializer
+function addon:LoadSpec()
+    local specIndex = GetSpecialization()
+    if not specIndex then return end
+    local specID = GetSpecializationInfo(specIndex)
+    if not specID then return end
+    -- Reset State registries
+    State._buffIDs   = {}
+    State._debuffIDs = {}
+    State._spellIDs  = {}
+    State._talentIDs = {}
+    State._dotIDs    = {}
+    State.dotDuration = {}
+    -- Reset APL lists and variables
+    APL._lists = {}
+    APL._vars  = {}
+    -- Run spec init if registered
+    if RotaPop._specInits[specID] then
+        RotaPop._specInits[specID]()
+    end
+end
+
 local defaults = {
     enabled = true,
     iconSize = 64,
@@ -15,6 +44,7 @@ local frame = CreateFrame("Frame")
 frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_LOGIN")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+frame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
 
 -- Track last cast for prevGCD
 frame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
@@ -40,6 +70,9 @@ frame:SetScript("OnEvent", function(self, event, ...)
     elseif event == "PLAYER_ENTERING_WORLD" then
         addon:OnEnterWorld()
 
+    elseif event == "PLAYER_SPECIALIZATION_CHANGED" then
+        addon:LoadSpec()
+
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
         local unit, _, spellID = ...
         if unit == "player" then
@@ -50,14 +83,8 @@ frame:SetScript("OnEvent", function(self, event, ...)
 end)
 
 function addon:OnLogin()
-    -- Detect spec and load spell module
-    local specIndex = GetSpecialization()
-    if specIndex then
-        local specID = GetSpecializationInfo(specIndex)
-        if specID == 261 then
-            -- Subtlety Rogue – loaded via TOC file order
-        end
-    end
+    -- Detect spec and run its initializer
+    addon:LoadSpec()
 
     -- Apply saved settings to UI
     if UI and UI.frame then

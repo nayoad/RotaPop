@@ -31,6 +31,9 @@ function addon:LoadSpec()
     -- Run spec init if registered
     if RotaPop._specInits[specID] then
         RotaPop._specInits[specID]()
+        print("|cff00ccff[RotaPop]|r Spec loaded: " .. tostring(specID))
+    else
+        print("|cff00ccff[RotaPop]|r |cffff9900No APL for spec " .. tostring(specID) .. " found.|r")
     end
 end
 
@@ -111,7 +114,8 @@ function addon:OnEnterWorld()
             UI:SetAction(spellID)
             UI:Show()
         elseif not State.inCombat then
-            -- Outside combat: keep frame visible (alpha handled by combatFrame)
+            -- Outside combat: show placeholder and keep frame visible
+            UI:SetAction(nil)
             UI:Show()
         else
             UI:Hide()

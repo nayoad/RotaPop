@@ -14,7 +14,35 @@ end
 -- Evaluate the "default" action list and return (actionName, spellID) for the
 -- first action whose condition passes and whose spell is castable.
 function APL:GetNextAction()
-    return self:_evalList("default")
+    local action, spellID = self:_evalList("default")
+    if action then return action, spellID end
+
+    -- Fallback outside combat: return first known spell as preview
+    if not State.inCombat then
+        return self:_evalListPreview("default")
+    end
+    return nil, nil
+end
+
+-- Like _evalList but ignores castable/CD checks (for out-of-combat preview)
+function APL:_evalListPreview(listName)
+    local list = self._lists[listName]
+    if not list then return nil, nil end
+    for _, entry in ipairs(list) do
+        if entry.action == "auto_attack" or entry.action == "pool_resource"
+           or entry.action == "set_variable" then
+            -- skip non-spell actions
+        elseif (entry.action == "call_action_list" or entry.action == "run_action_list") and entry.list_name then
+            local a, id = self:_evalListPreview(entry.list_name)
+            if a then return a, id end
+        else
+            local spellID = State._spellIDs[entry.action]
+            if spellID then
+                return entry.action, spellID
+            end
+        end
+    end
+    return nil, nil
 end
 
 -- Internal: evaluate a named list recursively

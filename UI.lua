@@ -12,6 +12,7 @@ f:SetPoint("CENTER", UIParent, "CENTER", 0, -200)
 f:SetMovable(true)
 f:EnableMouse(true)
 f:SetClampedToScreen(true)
+f:SetFrameStrata("HIGH")
 
 -- Drag support: hold Alt to drag
 f:SetScript("OnMouseDown", function(self, button)

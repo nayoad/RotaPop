@@ -37,8 +37,11 @@ State.castable      = {}
 State.talents       = {}
 State.dotRemains    = {}  -- name -> seconds remaining on target
 State.activeDots    = {}  -- name -> number of targets with this dot
+State.dotDuration   = {}  -- name -> base duration (seconds), populated by RegisterDot
 State.charges       = {}  -- name -> { current, max, fractional }
 State.flameshockSaturated = false
+State.energyRegen   = 10  -- updated each tick via GetPowerRegen
+State.timeToDie     = 300 -- estimated time to target death (default: long fight)
 
 -- Register a buff (player aura) by name and spellID
 function State:RegisterBuff(name, spellID)
@@ -61,9 +64,12 @@ function State:RegisterTalent(name)
 end
 
 -- Register a dot (debuff with remains + active count tracking)
-function State:RegisterDot(name, spellID)
+function State:RegisterDot(name, spellID, duration)
     self._dotIDs[name] = spellID
     self._debuffIDs[name] = spellID  -- also register as debuff
+    if duration then
+        self.dotDuration[name] = duration
+    end
 end
 
 -- Register a spell that has charges (charge tracking is automatic in Update() for all registered spells)
@@ -81,6 +87,7 @@ function State:Reset()
     self.dotRemains = {}
     self.activeDots = {}
     self.charges    = {}
+    self.timeToDie  = 300
 end
 
 -- Called before each APL evaluation
@@ -95,6 +102,12 @@ function State:Update()
 
     self.energy    = UnitPower("player", ENERGY) or 0
     self.energyMax = UnitPowerMax("player", ENERGY) or 100
+    do
+        -- GetPowerRegen returns baseRegen (out-of-combat/normal), castRegen (while casting)
+        -- Use baseRegen as the normal regen rate for APL time-to-cap calculations
+        local baseRegen, castRegen = GetPowerRegen()
+        self.energyRegen = baseRegen or castRegen or 10
+    end
 
     self.comboPoints    = UnitPower("player", COMBO) or 0
     self.comboPointsMax = UnitPowerMax("player", COMBO) or 5

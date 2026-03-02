@@ -1,115 +1,108 @@
 -- RotaPop: UI.lua
--- Minimal single-icon display for the recommended action.
+-- Highlights the recommended action button using the built-in overlay glow system.
 
 UI = {}
 
-local FRAME_NAME = "RotaPopFrame"
+UI._activeButton = nil   -- currently glowing button frame
+UI._lastSpellID  = nil   -- last recommended spell ID
 
--- Create the main frame
-local f = CreateFrame("Frame", FRAME_NAME, UIParent)
-f:SetSize(64, 64)
-f:SetPoint("CENTER", UIParent, "CENTER", 0, -200)
-f:SetMovable(true)
-f:EnableMouse(true)
-f:SetClampedToScreen(true)
-f:SetFrameStrata("HIGH")
+-- All standard actionbar button frame name patterns to scan
+local BUTTON_PATTERNS = {
+    -- Blizzard default bars
+    function(i) return _G["ActionButton"..i] end,              -- slots 1-12
+    function(i) return _G["MultiBarBottomLeftButton"..i] end,  -- slots 49-60
+    function(i) return _G["MultiBarBottomRightButton"..i] end, -- slots 61-72
+    function(i) return _G["MultiBarRightButton"..i] end,       -- slots 73-84
+    function(i) return _G["MultiBarLeftButton"..i] end,        -- slots 85-96
+    -- TWW additional bars
+    function(i) return _G["MultiBar5Button"..i] end,
+    function(i) return _G["MultiBar6Button"..i] end,
+    function(i) return _G["MultiBar7Button"..i] end,
+    -- Bartender4 naming convention
+    function(i) return _G["BT4Button"..i] end,
+    -- ElvUI naming convention
+    function(i) return _G["ElvUI_Bar1Button"..i] end,
+    function(i) return _G["ElvUI_Bar2Button"..i] end,
+    function(i) return _G["ElvUI_Bar3Button"..i] end,
+}
 
--- Drag support: hold Alt to drag
-f:SetScript("OnMouseDown", function(self, button)
-    if button == "LeftButton" and IsAltKeyDown() then
-        self:StartMoving()
-    end
-end)
-f:SetScript("OnMouseUp", function(self)
-    self:StopMovingOrSizing()
-end)
+-- Find the action button frame that currently has the given spellID on it
+local function FindButtonForSpell(spellID)
+    if not spellID then return nil end
 
--- Solid dark background so frame is visible even without spell icon
-local bg = f:CreateTexture(nil, "BACKGROUND")
-bg:SetAllPoints(f)
-bg:SetColorTexture(0, 0, 0, 0.7)
-
--- Icon texture
-local icon = f:CreateTexture(nil, "ARTWORK")
-icon:SetAllPoints(f)
-icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
--- Default placeholder texture (question mark icon)
-icon:SetTexture(134400)
-
--- Border highlight for glow effect
-local glow = f:CreateTexture(nil, "OVERLAY")
-glow:SetAllPoints(f)
-glow:SetColorTexture(1, 1, 1, 0)
-
-UI.frame = f
-UI.bg    = bg
-UI.icon  = icon
-UI.glow  = glow
-UI._lastSpellID = nil
-
-f:Show()
-
--- Update the displayed icon
-function UI:SetAction(spellID)
-    if spellID then
-        if spellID == self._lastSpellID then return end
-        self._lastSpellID = spellID
-        local tex = C_Spell.GetSpellTexture(spellID)
-        if tex then
-            self.icon:SetTexture(tex)
-        end
-        -- Simple glow pulse on action change
-        self.glow:SetColorTexture(1, 1, 1, 0.6)
-        C_Timer.After(0.15, function()
-            if self.glow then
-                self.glow:SetColorTexture(1, 1, 1, 0)
+    -- Scan all action slots 1-120
+    for slot = 1, 120 do
+        local slotType, id = GetActionInfo(slot)
+        if slotType == "spell" and id == spellID then
+            -- Found the slot — now find the button frame
+            -- Try each button pattern with index 1-12
+            for _, patternFn in ipairs(BUTTON_PATTERNS) do
+                for i = 1, 12 do
+                    local btn = patternFn(i)
+                    if btn and btn.action and btn.action == slot then
+                        return btn
+                    end
+                end
             end
-        end)
-    else
-        -- No action: show placeholder
-        self._lastSpellID = nil
-        self.icon:SetTexture(134400)  -- question mark
+            -- Fallback: try direct slot-to-button mapping for default bars
+            if slot >= 1 and slot <= 12 then
+                return _G["ActionButton"..slot]
+            elseif slot >= 25 and slot <= 36 then
+                return _G["ActionButton"..(slot - 24)]  -- page 3 mapped to main bar
+            elseif slot >= 49 and slot <= 60 then
+                return _G["MultiBarBottomLeftButton"..(slot - 48)]
+            elseif slot >= 61 and slot <= 72 then
+                return _G["MultiBarBottomRightButton"..(slot - 60)]
+            elseif slot >= 73 and slot <= 84 then
+                return _G["MultiBarRightButton"..(slot - 72)]
+            elseif slot >= 85 and slot <= 96 then
+                return _G["MultiBarLeftButton"..(slot - 84)]
+            end
+        end
+    end
+    return nil
+end
+
+-- Set the recommended action (spellID) and glow its button
+function UI:SetAction(spellID)
+    if spellID == self._lastSpellID then return end
+
+    -- Remove glow from old button
+    if self._activeButton then
+        if ActionButton_HideOverlayGlow then
+            ActionButton_HideOverlayGlow(self._activeButton)
+        end
+        self._activeButton = nil
+    end
+
+    self._lastSpellID = spellID
+
+    if not spellID then return end
+
+    -- Find and glow the new button
+    local btn = FindButtonForSpell(spellID)
+    if btn then
+        if ActionButton_ShowOverlayGlow then
+            ActionButton_ShowOverlayGlow(btn)
+        end
+        self._activeButton = btn
     end
 end
 
--- Show / hide the frame
-function UI:Show()
-    local alpha
-    if RotaPopDB and RotaPopDB.iconAlpha ~= nil then
-        alpha = RotaPopDB.iconAlpha
-    else
-        alpha = 1.0
+-- Clear all glows (called on disable / out of combat)
+function UI:ClearGlow()
+    if self._activeButton then
+        if ActionButton_HideOverlayGlow then
+            ActionButton_HideOverlayGlow(self._activeButton)
+        end
+        self._activeButton = nil
     end
-    self.frame:SetAlpha(alpha)
-    self.frame:Show()
+    self._lastSpellID = nil
 end
 
+-- No-op stubs so Main.lua calls don't error
+function UI:Show() end
 function UI:Hide()
-    self.frame:Hide()
+    self:ClearGlow()
 end
-
--- Resize the icon
-function UI:SetSize(size)
-    size = size or 64
-    self.frame:SetSize(size, size)
-end
-
--- Fade out when out of combat and not in an instance
-local combatFrame = CreateFrame("Frame")
-combatFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-combatFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
-combatFrame:SetScript("OnEvent", function(self, event)
-    if not RotaPopDB then return end  -- not yet initialised
-    if event == "PLAYER_REGEN_DISABLED" then
-        -- Entering combat: show
-        if RotaPopDB.enabled then
-            UI.frame:SetAlpha(RotaPopDB.iconAlpha or 1.0)
-        end
-    elseif event == "PLAYER_REGEN_ENABLED" then
-        -- Left combat: fade out unless in instance
-        local inInstance = select(2, IsInInstance()) ~= "none"
-        if not inInstance then
-            UI.frame:SetAlpha(0.4)
-        end
-    end
-end)
+function UI:SetSize() end

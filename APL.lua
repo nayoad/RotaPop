@@ -22,6 +22,8 @@ function APL:_evalList(listName)
     if not list then return nil, nil end
 
     for _, entry in ipairs(list) do
+        -- Set current action context (used for charges_fractional substitution)
+        APL._currentAction = entry.action
         -- Check condition (if any)
         local condPassed = true
         if entry.condition and entry.condition ~= "" then
@@ -112,12 +114,50 @@ function APL:SimToLua(str)
     -- gcd.remains
     str = str:gsub("gcd%.remains", "0")
 
+    -- dot.X.remains  -> State.dotRemains['X'] or 0
+    str = str:gsub("dot%.([%w_]+)%.remains", function(n)
+        return "(State.dotRemains['"..n.."'] or 0)"
+    end)
+
+    -- active_dot.X  -> State.activeDots['X'] or 0
+    str = str:gsub("active_dot%.([%w_]+)", function(n)
+        return "(State.activeDots['"..n.."'] or 0)"
+    end)
+
+    -- charges_fractional -> State.charges[APL._currentAction].fractional
+    str = str:gsub("charges_fractional", function()
+        return "(State.charges[APL._currentAction] and State.charges[APL._currentAction].fractional or 1)"
+    end)
+
+    -- maelstrom (bare resource)
+    str = str:gsub("maelstrom", "State.maelstrom")
+
+    -- flame_shock_saturated variable
+    str = str:gsub("variable%.flame_shock_saturated", "State.flameshockSaturated")
+
+    -- pet.X.active -> true (treat as always active)
+    str = str:gsub("pet%.[%w_]+%.active", "true")
+
+    -- ti_chain_lightning / ti_lightning_bolt -> talent.thorims_invocation.enabled
+    str = str:gsub("ti_chain_lightning", "(State.talents['thorims_invocation'])")
+    str = str:gsub("ti_lightning_bolt",  "(State.talents['thorims_invocation'])")
+
+    -- fight_remains -> 999 (unknown, treat as long fight)
+    str = str:gsub("fight_remains", "999")
+
+    -- variable.X -> 1 (simplify)
+    str = str:gsub("variable%.[%w_]+", "1")
+
+    -- gcd.max -> State.gcd
+    str = str:gsub("gcd%.max", "State.gcd")
+
     return str
 end
 
 -- Restricted environment for condition evaluation (avoids exposing all of _G)
 local _condEnv = setmetatable({
     State = State,
+    APL   = APL,
     math  = math,
 }, { __index = function() return nil end })
 

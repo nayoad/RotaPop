@@ -5,12 +5,14 @@ State = {}
 
 local ENERGY    = Enum.PowerType.Energy    or 3
 local COMBO     = Enum.PowerType.ComboPoints or 4
+local MAELSTROM = Enum.PowerType.Maelstrom or 11
 
 -- Registry for buff/debuff/cooldown/spell IDs populated by spec modules
 State._buffIDs    = {}   -- name -> spellID
 State._debuffIDs  = {}   -- name -> spellID
 State._spellIDs   = {}   -- name -> spellID
 State._talentIDs  = {}   -- name -> talentID (or name for lookup)
+State._dotIDs     = {}   -- name -> spellID (same as debuff but tracked separately for active_dot count)
 
 -- Public state fields (reset each update)
 State.time          = 0
@@ -21,6 +23,8 @@ State.energy        = 0
 State.energyMax     = 100
 State.comboPoints   = 0
 State.comboPointsMax = 5
+State.maelstrom    = 0
+State.maelstromMax = 100
 State.targets       = 1
 State.gcd           = 1.5
 State.haste         = 1.0
@@ -31,6 +35,10 @@ State.debuffs       = {}
 State.cooldowns     = {}
 State.castable      = {}
 State.talents       = {}
+State.dotRemains    = {}  -- name -> seconds remaining on target
+State.activeDots    = {}  -- name -> number of targets with this dot
+State.charges       = {}  -- name -> { current, max, fractional }
+State.flameshockSaturated = false
 
 -- Register a buff (player aura) by name and spellID
 function State:RegisterBuff(name, spellID)
@@ -52,6 +60,17 @@ function State:RegisterTalent(name)
     self._talentIDs[name] = true
 end
 
+-- Register a dot (debuff with remains + active count tracking)
+function State:RegisterDot(name, spellID)
+    self._dotIDs[name] = spellID
+    self._debuffIDs[name] = spellID  -- also register as debuff
+end
+
+-- Register a spell that has charges (charge tracking is automatic in Update() for all registered spells)
+function State:RegisterChargedSpell(name, spellID)
+    self._spellIDs[name] = spellID  -- also register normally
+end
+
 -- Wipe cached values
 function State:Reset()
     self.buffs     = {}
@@ -59,6 +78,9 @@ function State:Reset()
     self.cooldowns = {}
     self.castable  = {}
     self.talents   = {}
+    self.dotRemains = {}
+    self.activeDots = {}
+    self.charges    = {}
 end
 
 -- Called before each APL evaluation
@@ -76,6 +98,10 @@ function State:Update()
 
     self.comboPoints    = UnitPower("player", COMBO) or 0
     self.comboPointsMax = UnitPowerMax("player", COMBO) or 5
+
+    -- Maelstrom (Enhancement Shaman)
+    self.maelstrom    = UnitPower("player", MAELSTROM) or 0
+    self.maelstromMax = UnitPowerMax("player", MAELSTROM) or 100
 
     -- Target count: nameplate count, minimum 1
     local plates = C_NamePlate.GetNamePlates()
@@ -141,10 +167,54 @@ function State:Update()
         self.castable[name] = C_Spell.IsSpellUsable(spellID) and true or false
     end
 
+    -- Spell charges
+    self.charges = {}
+    for name, spellID in pairs(self._spellIDs) do
+        local info = C_Spell.GetSpellCharges(spellID)
+        if info then
+            local frac = info.currentCharges + (info.currentCharges < info.maxCharges and
+                (1 - math.max(0, (info.cooldownStartTime + info.cooldownDuration - self.time)) / math.max(1, info.cooldownDuration)) or 0)
+            self.charges[name] = {
+                current    = info.currentCharges,
+                max        = info.maxCharges,
+                fractional = frac,
+            }
+        else
+            self.charges[name] = { current = 1, max = 1, fractional = 1.0 }
+        end
+    end
+
+    -- Dot tracking (target)
+    self.dotRemains = {}
+    self.activeDots = {}
+    for name, spellID in pairs(self._dotIDs) do
+        -- Remains on current target
+        local aura = C_UnitAuras.GetAuraDataBySpellID("target", spellID)
+        self.dotRemains[name] = aura and aura.expirationTime and (aura.expirationTime - self.time) or 0
+
+        -- Active dot count: check nameplates
+        local count = 0
+        local plates = C_NamePlate.GetNamePlates()
+        if plates then
+            for _, plate in ipairs(plates) do
+                local unit = plate.namePlateUnitToken
+                if unit and UnitCanAttack("player", unit) then
+                    local dotAura = C_UnitAuras.GetAuraDataBySpellID(unit, spellID)
+                    if dotAura then count = count + 1 end
+                end
+            end
+        end
+        self.activeDots[name] = count
+    end
+
     -- Talents: safe wrapper using C_ClassTalents
     for name in pairs(self._talentIDs) do
         self.talents[name] = self:_checkTalent(name)
     end
+
+    -- flame_shock_saturated: all enemies have flame shock, or 6 targets have it
+    local fsActive = self.activeDots["flame_shock"] or 0
+    self.flameshockSaturated = (fsActive >= self.targets) or (fsActive >= 6)
 end
 
 -- Safe talent check. Returns true if the player has the named talent active.

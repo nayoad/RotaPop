@@ -15,9 +15,15 @@ end
 -- Detect current spec and run its initializer
 function addon:LoadSpec()
     local specIndex = GetSpecialization()
-    if not specIndex then return end
+    if not specIndex then
+        print("|cff00ccff[RotaPop]|r |cffff9900No spec detected.|r")
+        return
+    end
     local specID = GetSpecializationInfo(specIndex)
-    if not specID then return end
+    if not specID then
+        print("|cff00ccff[RotaPop]|r |cffff9900GetSpecializationInfo returned nil.|r")
+        return
+    end
     -- Reset State registries
     State._buffIDs   = {}
     State._debuffIDs = {}
@@ -31,9 +37,9 @@ function addon:LoadSpec()
     -- Run spec init if registered
     if RotaPop._specInits[specID] then
         RotaPop._specInits[specID]()
-        print("|cff00ccff[RotaPop]|r Spec loaded: " .. tostring(specID))
+        print("|cff00ccff[RotaPop]|r APL loaded for spec " .. tostring(specID))
     else
-        print("|cff00ccff[RotaPop]|r |cffff9900No APL for spec " .. tostring(specID) .. " found.|r")
+        print("|cff00ccff[RotaPop]|r |cffff9900No APL registered for spec " .. tostring(specID) .. ". Supported: Rogue Subtlety (261), Shaman Enhancement (263).|r")
     end
 end
 

@@ -28,6 +28,7 @@ end
 function APL:_evalListPreview(listName)
     local list = self._lists[listName]
     if not list then return nil, nil end
+    local firstSpell, firstID = nil, nil  -- fallback: first known spell regardless of conditions
     for _, entry in ipairs(list) do
         if entry.action == "auto_attack" or entry.action == "pool_resource"
            or entry.action == "set_variable" then
@@ -38,11 +39,23 @@ function APL:_evalListPreview(listName)
         else
             local spellID = State._spellIDs[entry.action]
             if spellID then
-                return entry.action, spellID
+                -- Try condition first
+                local condPassed = true
+                if entry.condition and entry.condition ~= "" then
+                    condPassed = self:EvalCondition(entry.condition)
+                end
+                if condPassed then
+                    return entry.action, spellID
+                end
+                -- Remember as fallback
+                if not firstSpell then
+                    firstSpell, firstID = entry.action, spellID
+                end
             end
         end
     end
-    return nil, nil
+    -- Fallback: return first known spell even if condition failed
+    return firstSpell, firstID
 end
 
 -- Internal: evaluate a named list recursively
@@ -77,8 +90,7 @@ function APL:_evalList(listName)
                 local spellID = State._spellIDs[entry.action]
                 if spellID then
                     local cd = State.cooldowns[entry.action] or 0
-                    local usable = State.castable[entry.action]
-                    if usable and cd <= 0 then
+                    if cd <= 0 then
                         return entry.action, spellID
                     end
                 end

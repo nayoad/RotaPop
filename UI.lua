@@ -38,6 +38,8 @@ UI.icon  = icon
 UI.glow  = glow
 UI._lastSpellID = nil
 
+f:Show()
+
 -- Update the displayed icon
 function UI:SetAction(spellID)
     if spellID == self._lastSpellID then return end
@@ -59,6 +61,7 @@ end
 
 -- Show / hide the frame
 function UI:Show()
+    self.frame:SetAlpha(RotaPopDB and RotaPopDB.iconAlpha or 1.0)
     self.frame:Show()
 end
 
@@ -86,7 +89,7 @@ combatFrame:SetScript("OnEvent", function(self, event)
         -- Left combat: fade out unless in instance
         local inInstance = select(2, IsInInstance()) ~= "none"
         if not inInstance then
-            UI.frame:SetAlpha(0)
+            UI.frame:SetAlpha(0.4)
         end
     end
 end)

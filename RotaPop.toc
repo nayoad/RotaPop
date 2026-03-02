@@ -12,3 +12,4 @@ State.lua
 APL.lua
 UI.lua
 Spells\RogueSubtlety.lua
+Spells\ShamanEnhancement.lua

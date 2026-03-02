@@ -95,12 +95,6 @@ function addon:OnLogin()
     -- Detect spec and run its initializer
     addon:LoadSpec()
 
-    -- Apply saved settings to UI
-    if UI and UI.frame then
-        UI:SetSize(RotaPopDB.iconSize)
-        UI.frame:SetAlpha(RotaPopDB.iconAlpha)
-    end
-
     print("|cff00ccff[RotaPop]|r loaded. Type /rotapop to toggle.")
 end
 
@@ -111,20 +105,16 @@ function addon:OnEnterWorld()
     end
     addon.ticker = C_Timer.NewTicker(0.1, function()
         if not RotaPopDB.enabled then
-            UI:Hide()
+            UI:ClearGlow()
             return
         end
         State:Update()
         local action, spellID = APL:GetNextAction()
         if action and spellID then
             UI:SetAction(spellID)
-            UI:Show()
-        elseif not State.inCombat then
-            -- Outside combat: show placeholder and keep frame visible
-            UI:SetAction(nil)
-            UI:Show()
         else
-            UI:Hide()
+            -- No castable suggestion found: clear glow
+            UI:ClearGlow()
         end
     end)
 end
@@ -137,6 +127,6 @@ SlashCmdList["ROTAPOP"] = function(msg)
         print("|cff00ccff[RotaPop]|r |cff00ff00enabled|r.")
     else
         print("|cff00ccff[RotaPop]|r |cffff4444disabled|r.")
-        UI:Hide()
+        UI:ClearGlow()
     end
 end
